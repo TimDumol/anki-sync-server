@@ -433,6 +433,10 @@ class SyncApp:
         if not self.base_media_url.endswith('/'):
             self.base_media_url += '/'
 
+        # convert base URLs to regexes, to handle Anki desktop's hostNum protocol
+        self.base_url = re.compile(r'%s(?P<path>.*)' % self.base_url.replace('${hostNum}', r'\d*'))
+        self.base_media_url = re.compile(r'%s(?P<path>.*)' % self.base_media_url.replace('${hostNum}', r'\d*'))
+
     # backwards compat
     @property
     def hook_pre_sync(self):
@@ -568,8 +572,10 @@ class SyncApp:
         except KeyError:
             data = {}
 
-        if req.path.startswith(self.base_url):
-            url = req.path[len(self.base_url):]
+        base_url_match = self.base_url.match(req.path)
+        base_media_url_match = self.base_media_url.match(req.path)
+        if base_url_match:
+            url = base_url_match.group('path')
             if url not in self.valid_urls:
                 raise HTTPNotFound()
 
@@ -635,11 +641,11 @@ class SyncApp:
             raise HTTPInternalServerError()
 
         # media sync
-        elif req.path.startswith(self.base_media_url):
+        elif base_media_url_match:
             if session is None:
                 raise HTTPForbidden()
 
-            url = req.path[len(self.base_media_url):]
+            url = base_media_url_match.group('path')
 
             if url not in self.valid_urls:
                 raise HTTPNotFound()
